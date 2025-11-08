@@ -24,3 +24,30 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@layer utilities {
+  .animate-fade-in-up {
+    /*
+      We 'name' our animation 'fade-in-up'.
+      It will take 0.8 seconds.
+      'ease-in-out' makes it smooth.
+      'forwards' means it stays at the 'to' state and doesn't reset.
+    */
+    animation: fade-in-up 0.8s ease-in-out forwards;
+  }
+  
+  /*
+    @keyframes defines the animation steps.
+    'from' is the start, 'to' is the end.
+  */
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}

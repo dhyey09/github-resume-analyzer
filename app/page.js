@@ -1,65 +1,201 @@
-import Image from "next/image";
+'use client';
+
+import { useState } from 'react';
+// Icons
+import { Eye, Sparkles, UploadCloud, FileText, X } from 'lucide-react';
 
 export default function Home() {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [results, setResults] = useState(null);
+
+  /**
+   * Handles the file input 'onChange' event.
+   * validates the file type.
+   */
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    
+    if (!file) {
+      setSelectedFile(null);
+      setError(null);
+      return;
+    }
+
+    const allowedExtensions = ['.pdf', '.docx'];
+    const fileExtension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+
+    if (allowedExtensions.includes(fileExtension)) {
+      setSelectedFile(file);
+      setError(null); 
+    } else {
+      setSelectedFile(null);
+      setError('Invalid file type. Please upload a .pdf or .docx file.');
+      event.target.value = null;
+    }
+  };
+
+  /**
+   * Handles the form submission.
+   * Validates the file type and submits.
+   */
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!selectedFile) {
+      setError('Please place your resume in the inbox to analyze.');
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
+    setResults(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      const res = await fetch('/api/parse-resume', {
+        method: 'POST',
+        body: formData,
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        setError('Server error: response was not JSON. See console for details.');
+        setResults(null);
+        return;
+      }
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.error || 'Failed to parse resume.');
+        setResults(null);
+      } else {
+        setResults(data);
+        setError(null);
+      }
+    } catch (err) {
+      setError('Network or server error.');
+      setResults(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const removeFile = (event) => {
+    event.preventDefault(); // Stop event propagation
+    setSelectedFile(null);
+    setError(null);
+    const fileInput = document.getElementById('resume-file');
+    if (fileInput) {
+      fileInput.value = null;
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.js file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="flex items-center justify-center min-h-screen bg-slate-900 p-4 font-sans">
+      <div className="max-w-3xl w-full bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden animate-fade-in-up">
+        {/* === Header Section === */}
+        <div className="p-6 md:p-8 border-b border-slate-700">
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-center w-12 h-12 bg-purple-600/20 rounded-xl border border-purple-800">
+              <Eye className="w-6 h-6 text-purple-300" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Blink Analytics</h1>
+              <p className="text-slate-400 text-sm">Welcome. Please submit your resume to the inbox below.</p>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        {/* === Form Section === */}
+        <form onSubmit={handleSubmit} className="p-6 md:p-8">
+          <label htmlFor="resume-file" className="block text-sm font-medium text-slate-300 mb-2">
+            Place Resume in Inbox
+          </label>
+          <div className="w-full h-48 relative bg-slate-900 rounded-lg border-2 border-slate-700 transition-all duration-300 overflow-hidden">
+            <label 
+              htmlFor="resume-file" 
+              className={`absolute inset-0 flex flex-col items-center justify-center w-full h-full p-6 border-2 border-dashed border-slate-600 rounded-lg cursor-pointer 
+                         hover:bg-slate-800/50 hover:border-purple-500
+                         transition-all duration-300 ease-in-out
+                         ${selectedFile ? 'opacity-0 translate-y-5 pointer-events-none' : 'opacity-100 translate-y-0 pointer-events-auto'} z-20`}
+            >
+              <UploadCloud className="w-10 h-10 text-slate-500 mb-3" />
+              <span className="font-semibold text-purple-400">Click to upload resume</span>
+              <span className="text-slate-500 text-sm mt-1">.PDF or .DOCX</span>
+            </label>
+            <div 
+              className={`absolute inset-0 flex items-center justify-center p-6
+                          transition-all duration-300 ease-in-out
+                          ${selectedFile ? 'opacity-100 translate-y-0 pointer-events-auto z-10' : 'opacity-0 -translate-y-5 pointer-events-none z-0'}`}
+            >
+              <div className="relative flex items-center w-full max-w-sm p-4 bg-white/95 rounded-md shadow-lg">
+                <FileText className="w-8 h-8 text-indigo-700 mr-3 flex-shrink-0" />
+                <div className="truncate">
+                  <span className="text-sm font-semibold text-gray-800 truncate block" title={selectedFile?.name}>
+                    {selectedFile?.name}
+                  </span>
+                  <span className="text-xs text-gray-600">Ready to submit</span>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={removeFile} 
+                  className="absolute -top-2 -right-2 ml-2 p-1 text-gray-500 bg-white rounded-full hover:text-red-500 hover:bg-gray-100 shadow-md"
+                  title="Remove file"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <input
+              id="resume-file"
+              type="file"
+              className="sr-only"
+              onChange={handleFileChange}
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+          </div>
+          {error && (
+            <div className="mt-4 flex items-center p-3 bg-red-900/30 border border-red-700 rounded-lg animate-fade-in-up">
+              <X className="w-5 h-5 text-red-400 mr-2 flex-shrink-0" />
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+          <div className="mt-6">
+            <button
+              type="submit"
+              disabled={isLoading || !selectedFile} 
+              className="w-full cursor-pointer flex items-center justify-center px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg text-white font-semibold shadow-lg 
+                         hover:shadow-xl hover:from-purple-700 hover:to-indigo-700 
+                         transition-all duration-300 transform hover:-translate-y-0.5
+                         disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+            >
+              <Sparkles className="w-5 h-5 mr-2" />
+              {isLoading ? 'Analyzing...' : 'Submit Resume'}
+            </button>
+          </div>
+        </form>
+        {/* === Results Section === */}
+        {results && (
+          <div className="p-6 mt-4 pt-0 md:p-8 md:pt-0 border-t border-slate-700 bg-slate-900 animate-fade-in-up">
+            <h2 className="text-lg mt-4 font-bold text-purple-300 mb-4 flex items-center"><Sparkles className="w-5 h-5 mr-2" />GitHub Profiles & Repos Found</h2>
+            {results.github.length === 0 ? (
+              <div className="text-slate-400">No GitHub profiles or repositories detected in your resume.</div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {results.github.map((item, idx) => (
+                  <div key={item.url + idx} className="bg-slate-800 rounded-lg border border-purple-700 shadow p-4 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <Eye className="w-5 h-5 text-purple-400" />
+                      <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-purple-300 hover:underline">
+                        {item.type === 'user' ? `@${item.owner}` : `${item.owner}/${item.repo}`}
+                      </a>
+                      <span className="ml-auto text-xs text-slate-400">Confidence: {(item.confidence * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="text-xs text-slate-400 break-all">{item.url}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+  </main>
   );
 }

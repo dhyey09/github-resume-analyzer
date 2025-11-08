@@ -1,8 +1,10 @@
-'use client';
+"use client";
 
 import { useState } from 'react';
 // Icons
 import { Eye, Sparkles, UploadCloud, FileText, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function Home() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -82,11 +84,17 @@ export default function Home() {
     event.preventDefault(); // Stop event propagation
     setSelectedFile(null);
     setError(null);
+    setResults(null);
     const fileInput = document.getElementById('resume-file');
     if (fileInput) {
       fileInput.value = null;
     }
   };
+
+  const [showModal, setShowModal] = useState(false);
+  const [modalContent, setModalContent] = useState('');
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalMeta, setModalMeta] = useState(null);
 
   return (
     <main className="flex items-center justify-center min-h-screen bg-slate-900 p-4 font-sans">
@@ -178,21 +186,138 @@ export default function Home() {
             {results.github.length === 0 ? (
               <div className="text-slate-400">No GitHub profiles or repositories detected in your resume.</div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-1">
                 {results.github.map((item, idx) => (
-                  <div key={item.url + idx} className="bg-slate-800 rounded-lg border border-purple-700 shadow p-4 flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <Eye className="w-5 h-5 text-purple-400" />
-                      <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-purple-300 hover:underline">
-                        {item.type === 'user' ? `@${item.owner}` : `${item.owner}/${item.repo}`}
-                      </a>
-                      <span className="ml-auto text-xs text-slate-400">Confidence: {(item.confidence * 100).toFixed(0)}%</span>
+                  <div key={item.url + idx} className="bg-slate-800 rounded-lg border border-purple-700 shadow p-4 flex flex-col gap-3">
+                    <div className="flex items-start gap-3">
+                      <Eye className="w-5 h-5 text-purple-400 mt-1" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-purple-300 hover:underline text-sm">
+                            {item.type === 'user' ? `@${item.owner}` : `${item.owner}/${item.repo}`}
+                          </a>
+                          <span className="ml-auto text-xs text-slate-400">Confidence: {(item.confidence * 100).toFixed(0)}%</span>
+                        </div>
+                        {item.profile && (
+                          <div className="mt-2 text-xs text-slate-300">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{item.profile.name || item.owner}</span>
+                              <span className="text-slate-400">• @{item.owner}</span>
+                              <span className="ml-auto text-xs text-slate-400">Active days (30d): {item.activity?.daysActive ?? 0} ({item.activity?.percentActive ?? 0}%)</span>
+                            </div>
+                            {item.profile.bio && <div className="mt-1 text-xs text-slate-400">{item.profile.bio}</div>}
+                          </div>
+                        )}
+                        {item.repoInfo && (
+                          <div className="mt-2 text-xs text-slate-300">
+                            <div className="font-semibold">{item.repoInfo.full_name}</div>
+                            {item.repoInfo.description && <div className="text-slate-400">{item.repoInfo.description}</div>}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-400 break-all">{item.url}</div>
+
+                    {/* If this is a user with repos, list them */}
+                    {item.repos && item.repos.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-sm font-semibold text-purple-200 mb-2">Public repositories</div>
+                        <div className="space-y-3">
+                          {item.repos.map((r) => (
+                            <div key={r.full_name} className="bg-slate-900 border border-slate-700 rounded p-3">
+                              <div className="flex items-center justify-between">
+                                <a href={r.html_url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-purple-300 hover:underline">
+                                  {r.name}
+                                </a>
+                                <div className="text-xs text-slate-400">⭐ {r.stargazers_count} • Forks: {r.forks_count}</div>
+                              </div>
+                              {r.description && <div className="text-xs text-slate-400 mt-1">{r.description}</div>}
+                              <div className="mt-1 text-xs text-slate-500">
+                                {r.firstCommitDate && <span>First: {new Date(r.firstCommitDate).toLocaleDateString()}</span>}
+                                {r.lastCommitDate && <span className="mx-2">•</span>}
+                                {r.lastCommitDate && <span>Last: {new Date(r.lastCommitDate).toLocaleDateString()}</span>}
+                                {r.durationDays != null && <span className="mx-2">•</span>}
+                                {r.durationDays != null && <span>Duration: {r.durationDays} days</span>}
+                              </div>
+                              {r.techStack && r.techStack.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {r.techStack.slice(0,5).map((t) => (
+                                    <span key={t} className="text-xs bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-300">{t}</span>
+                                  ))}
+                                </div>
+                              )}
+                              {/* View README button (opens modal) */}
+                              {r.readme && (
+                                <div className="mt-3">
+                                  <button onClick={() => { setModalContent(r.readme); setModalTitle(r.full_name); setModalMeta({ firstCommitDate: r.firstCommitDate, lastCommitDate: r.lastCommitDate, durationDays: r.durationDays }); setShowModal(true); }} className="text-xs bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded text-white">
+                                    View README
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* If this is a single repo entity, show extracted readme/tech */}
+                    {item.repoInfo && (
+                      <div className="mt-2">
+                        <div className="text-xs text-slate-500 mb-2">
+                          {item.firstCommitDate && <span>First commit: {new Date(item.firstCommitDate).toLocaleDateString()}</span>}
+                          {item.lastCommitDate && <span className="mx-2">•</span>}
+                          {item.lastCommitDate && <span>Last commit: {new Date(item.lastCommitDate).toLocaleDateString()}</span>}
+                          {item.durationDays != null && <span className="mx-2">•</span>}
+                          {item.durationDays != null && <span>Duration: {item.durationDays} days</span>}
+                        </div>
+                        {item.techStack && item.techStack.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {item.techStack.slice(0,5).map((t) => (
+                              <span key={t} className="text-xs bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-300">{t}</span>
+                            ))}
+                          </div>
+                        )}
+                        {item.readmeSnippet && (
+                          <div className="text-xs text-slate-400">{item.readmeSnippet}</div>
+                        )}
+                        {item.readme && (
+                          <div className="mt-2">
+                            <button onClick={() => { setModalContent(item.readme); setModalTitle(item.repoInfo?.full_name || item.url); setModalMeta({ firstCommitDate: item.firstCommitDate, lastCommitDate: item.lastCommitDate, durationDays: item.durationDays }); setShowModal(true); }} className="text-xs bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded text-white">
+                              View README
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
+          </div>
+        )}
+        {/* README modal */}
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-6">
+            <div className="absolute inset-0 bg-black/60" onClick={() => setShowModal(false)} />
+            <div className="relative w-full max-w-3xl max-h-[80vh] overflow-auto bg-white rounded-lg shadow-2xl border border-slate-700 p-4 z-60">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-2xl font-extrabold text-purple-700">{modalTitle}</h3>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {modalMeta?.firstCommitDate && <span>First commit: {new Date(modalMeta.firstCommitDate).toLocaleDateString()}</span>}
+                      {modalMeta?.lastCommitDate && <span className="mx-2">•</span>}
+                      {modalMeta?.lastCommitDate && <span>Last commit: {new Date(modalMeta.lastCommitDate).toLocaleDateString()}</span>}
+                      {modalMeta?.durationDays != null && <span className="mx-2">•</span>}
+                      {modalMeta?.durationDays != null && <span>Duration: {modalMeta.durationDays} days</span>}
+                    </div>
+                  </div>
+                  <button onClick={() => setShowModal(false)} className="p-1 rounded hover:bg-slate-100">
+                    <X className="w-5 h-5 text-slate-700" />
+                  </button>
+                </div>
+                <div className="prose max-w-none text-slate-800">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{modalContent}</ReactMarkdown>
+                </div>
+            </div>
           </div>
         )}
       </div>

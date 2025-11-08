@@ -79,6 +79,158 @@ function extractGithubEntities(text) {
   return results;
 }
 
+// --- GitHub API helpers ---
+const GITHUB_API_BASE = 'https://api.github.com';
+
+function buildAuthHeaders() {
+  const headers = { 'User-Agent': 'github-resume-analyzer' };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
+  return headers;
+}
+
+async function fetchJson(path) {
+  try {
+    const res = await fetch(GITHUB_API_BASE + path, { headers: buildAuthHeaders() });
+    const body = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, body };
+  } catch (err) {
+    return { ok: false, status: 0, body: null, error: String(err) };
+  }
+}
+
+// simple concurrency-limited mapper
+async function mapWithConcurrency(items, fn, concurrency = 5) {
+  const results = new Array(items.length);
+  let i = 0;
+  const workers = new Array(concurrency).fill(0).map(async () => {
+    while (i < items.length) {
+      const idx = i++;
+      try {
+        results[idx] = await fn(items[idx], idx);
+      } catch (e) {
+        results[idx] = { error: String(e) };
+      }
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+
+async function fetchGithubDetailsForEntity(entity) {
+  const out = { ...entity };
+  try {
+    if (entity.type === 'user') {
+      const r = await fetchJson(`/users/${encodeURIComponent(entity.owner)}`);
+      out.profile = r.ok ? r.body : null;
+      out._fetch = { ok: r.ok, status: r.status };
+
+      // Fetch recent public events to compute activity over the last 30 days
+      try {
+        const eventsResp = await fetchJson(`/users/${encodeURIComponent(entity.owner)}/events/public?per_page=100`);
+        const events = Array.isArray(eventsResp.body) ? eventsResp.body : [];
+        const now = Date.now();
+        const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+        const daysSet = new Set();
+        for (const ev of events) {
+          if (!ev || !ev.created_at) continue;
+          const t = Date.parse(ev.created_at);
+          if (Number.isNaN(t)) continue;
+          if (now - t <= THIRTY_DAYS) {
+            const d = new Date(t).toISOString().slice(0, 10);
+            daysSet.add(d);
+          }
+        }
+        const daysActive = daysSet.size;
+        const percentActive = Math.round((daysActive / 30) * 100);
+        out.activity = { daysActive, percentActive };
+      } catch (e) {
+        out.activity = { daysActive: 0, percentActive: 0 };
+      }
+
+      // Fetch public repos list and enrich each repo with readme/languages/run steps
+      try {
+        const reposResp = await fetchJson(`/users/${encodeURIComponent(entity.owner)}/repos?per_page=100&type=owner&sort=updated`);
+        const repos = Array.isArray(reposResp.body) ? reposResp.body : [];
+        // For each repo, fetch readme and languages with limited concurrency
+        const repoDetails = await mapWithConcurrency(repos, async (r) => {
+          const repoOut = {
+            name: r.name,
+            full_name: r.full_name,
+            html_url: r.html_url,
+            description: r.description || '',
+            stargazers_count: r.stargazers_count || 0,
+            forks_count: r.forks_count || 0,
+              firstCommitDate: r.created_at || null,
+              lastCommitDate: r.pushed_at || null,
+              durationDays: (r.created_at && r.pushed_at) ? Math.max(0, Math.round((Date.parse(r.pushed_at) - Date.parse(r.created_at)) / (1000 * 60 * 60 * 24))) : null,
+          };
+          // README
+          try {
+            const readmeResp = await fetchJson(`/repos/${encodeURIComponent(entity.owner)}/${encodeURIComponent(r.name)}/readme`);
+            if (readmeResp.ok && readmeResp.body && readmeResp.body.content) {
+              const content = Buffer.from(readmeResp.body.content || '', 'base64').toString('utf8');
+              repoOut.readme = content;
+              // Short description: first non-empty paragraph
+              const m = content.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+              repoOut.readmeSnippet = m.slice(0, 5).join('\n').slice(0, 800);
+            }
+          } catch (e) {
+            // ignore
+          }
+          // languages
+          try {
+            const langResp = await fetchJson(`/repos/${encodeURIComponent(entity.owner)}/${encodeURIComponent(r.name)}/languages`);
+            if (langResp.ok && langResp.body && typeof langResp.body === 'object') {
+              // convert to sorted array by bytes
+              const langs = Object.entries(langResp.body).sort((a, b) => b[1] - a[1]).map(([k]) => k);
+              repoOut.techStack = langs;
+            }
+          } catch (e) {
+            // ignore
+          }
+          return repoOut;
+        }, 3);
+        out.repos = repoDetails || [];
+      } catch (e) {
+        out.repos = [];
+      }
+
+    } else if (entity.type === 'repo' && entity.repo) {
+      const r = await fetchJson(`/repos/${encodeURIComponent(entity.owner)}/${encodeURIComponent(entity.repo)}`);
+      out.repoInfo = r.ok ? r.body : null;
+      out._fetch = { ok: r.ok, status: r.status };
+      // fetch README and languages
+      try {
+        const readmeResp = await fetchJson(`/repos/${encodeURIComponent(entity.owner)}/${encodeURIComponent(entity.repo)}/readme`);
+        if (readmeResp.ok && readmeResp.body && readmeResp.body.content) {
+          const content = Buffer.from(readmeResp.body.content || '', 'base64').toString('utf8');
+          out.readme = content;
+          const m = content.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+          out.readmeSnippet = m.slice(0, 5).join('\n').slice(0, 800);
+        }
+      } catch (e) {}
+      try {
+        const langResp = await fetchJson(`/repos/${encodeURIComponent(entity.owner)}/${encodeURIComponent(entity.repo)}/languages`);
+        if (langResp.ok && langResp.body) {
+          out.techStack = Object.entries(langResp.body).sort((a, b) => b[1] - a[1]).map(([k]) => k);
+        }
+      } catch (e) {}
+      // add commit dates/duration if available from repoInfo
+      try {
+        if (out.repoInfo) {
+          out.firstCommitDate = out.repoInfo.created_at || null;
+          out.lastCommitDate = out.repoInfo.pushed_at || null;
+          out.durationDays = (out.firstCommitDate && out.lastCommitDate) ? Math.max(0, Math.round((Date.parse(out.lastCommitDate) - Date.parse(out.firstCommitDate)) / (1000 * 60 * 60 * 24))) : null;
+        }
+      } catch (e) {}
+    }
+  } catch (err) {
+    out._fetch = { ok: false, error: String(err) };
+  }
+  return out;
+}
+
 async function parsePdf(buffer) {
   // First attempt: use pdf-parse (wrap in try/catch)
   try {
@@ -218,7 +370,18 @@ export async function POST(req) {
   const CONFIDENCE_THRESHOLD = 0.9;
   const filtered = (all || []).filter((it) => (typeof it.confidence === 'number' ? it.confidence : 0) >= CONFIDENCE_THRESHOLD);
     try {
-      const payload = { success: true, github: filtered };
+      // Only fetch details for the single highest-confidence entity (avoid calling API for every candidate)
+      if (!filtered || filtered.length === 0) {
+        const payload = { success: true, github: [] };
+        return new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      // pick the entity with max confidence (first one wins on tie)
+      let top = filtered[0];
+      for (const it of filtered) {
+        if ((typeof it.confidence === 'number' ? it.confidence : 0) > (typeof top.confidence === 'number' ? top.confidence : 0)) top = it;
+      }
+      const detailedTop = await fetchGithubDetailsForEntity(top);
+      const payload = { success: true, github: [detailedTop] };
       return new Response(JSON.stringify(payload), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

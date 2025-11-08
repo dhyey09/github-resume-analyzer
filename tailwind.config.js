@@ -7,10 +7,8 @@ module.exports = {
   ],
   theme: {
     extend: {
-      // This is the new part
       fontFamily: {
-        // This tells Tailwind that 'font-sans' should
-        // use our CSS variable '--font-inter' first.
+        // 'font-sans' should use CSS variable '--font-inter' first.
         sans: ['var(--font-inter)', 'sans-serif'],
       },
     },

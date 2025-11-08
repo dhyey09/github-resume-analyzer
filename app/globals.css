@@ -27,19 +27,9 @@ body {
 
 @layer utilities {
   .animate-fade-in-up {
-    /*
-      We 'name' our animation 'fade-in-up'.
-      It will take 0.8 seconds.
-      'ease-in-out' makes it smooth.
-      'forwards' means it stays at the 'to' state and doesn't reset.
-    */
     animation: fade-in-up 0.8s ease-in-out forwards;
   }
   
-  /*
-    @keyframes defines the animation steps.
-    'from' is the start, 'to' is the end.
-  */
   @keyframes fade-in-up {
     from {
       opacity: 0;

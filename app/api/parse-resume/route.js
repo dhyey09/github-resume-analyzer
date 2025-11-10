@@ -370,12 +370,23 @@ export async function POST(req) {
   const CONFIDENCE_THRESHOLD = 0.9;
   const filtered = (all || []).filter((it) => (typeof it.confidence === 'number' ? it.confidence : 0) >= CONFIDENCE_THRESHOLD);
     try {
-      // Only fetch details for the single highest-confidence entity (avoid calling API for every candidate)
+      // If no candidates, return empty result
       if (!filtered || filtered.length === 0) {
         const payload = { success: true, github: [] };
         return new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
-      // pick the entity with max confidence (first one wins on tie)
+
+      // If the parsed candidates are multiple repository links (no user profile detected),
+      // fetch details for each repo link so the main page can show per-repo metadata
+      const allRepos = (filtered || []).filter((it) => it && it.type === 'repo');
+      if (allRepos.length > 1 && allRepos.length === filtered.length) {
+        // Fetch all repo details with limited concurrency to avoid overwhelming the GitHub API
+        const details = await mapWithConcurrency(allRepos, async (ent) => await fetchGithubDetailsForEntity(ent), 3);
+        const payload = { success: true, github: details };
+        return new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // Otherwise fallback to the original behavior: pick the single highest-confidence candidate
       let top = filtered[0];
       for (const it of filtered) {
         if ((typeof it.confidence === 'number' ? it.confidence : 0) > (typeof top.confidence === 'number' ? top.confidence : 0)) top = it;

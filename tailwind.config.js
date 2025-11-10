@@ -8,10 +8,8 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        // 'font-sans' should use CSS variable '--font-inter' first.
         sans: ['var(--font-inter)', 'sans-serif'],
       },
     },
   },
-  plugins: [],
 };

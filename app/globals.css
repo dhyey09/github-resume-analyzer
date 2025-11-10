@@ -1,10 +1,17 @@
 @import "tailwindcss";
 
+@variant dark (.dark &);
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f9fafb;
+  --foreground: #111827;
+  --muted: #6b7280;
+  --accent-1: #60a5fa; /* blue-400 */
+  --accent-2: #7c3aed; /* indigo-600 */
+  --card-bg: #ffffff;
 }
 
+/* theme variables for other tools */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -12,24 +19,19 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer utilities {
   .animate-fade-in-up {
     animation: fade-in-up 0.8s ease-in-out forwards;
   }
-  
+
   @keyframes fade-in-up {
     from {
       opacity: 0;
@@ -40,4 +42,122 @@ body {
       transform: translateY(0);
     }
   }
+
+  .hover-lift {
+    transition: transform 0.28s cubic-bezier(.2,.9,.2,1), box-shadow 0.28s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 20px 40px rgba(17, 24, 39, 0.08);
+  }
+  .dark .hover-lift:hover {
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  /* small rounded badge */
+  .pill {
+    border-radius: 9999px;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem;
+    font-size: 0.6875rem;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+
+  .progress-track { background: linear-gradient(90deg, rgba(99,102,241,0.08), rgba(96,165,250,0.06)); border-radius: 999px; height: 8px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-1), var(--accent-2)); border-radius: 999px; }
+
+  /* README / code block styling */
+  .md-code {
+    background: #0f172a; /* slate-900 — darker background for code */
+    color: #e6edf3;
+    border-radius: 0.5rem;
+    overflow: auto;
+    padding: 1rem;
+    position: relative;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Helvetica Neue", monospace;
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+  .md-code pre { margin: 0; white-space: pre; }
+  .md-code .code-header {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .md-code .code-lang {
+    background: rgba(255,255,255,0.06);
+    color: #e6edf3;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    text-transform: lowercase;
+  }
+  .md-code .copy-btn {
+    background: rgba(255,255,255,0.06);
+    color: #e6edf3;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+  .md-code .copy-btn:active { transform: translateY(1px); }
+
+  /* inline code (small) */
+  code.inline-code {
+    background: rgba(99,102,241,0.08);
+    color: #111827;
+    padding: 0.08rem 0.35rem;
+    border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+    font-size: 0.85rem;
+  }
+  .dark code.inline-code {
+    background: rgba(99,102,241,0.2);
+    color: #e6edf3;
+  }
+
+
+  .card-accent {
+    width: 6px;
+    border-radius: 6px 0 0 6px;
+    background: linear-gradient(180deg, var(--accent-1), var(--accent-2));
+    margin-right: -1px;
+  }
+}
+
+/* Prose tweaks for README display */
+.prose {
+  max-width: none;
+  color: #0f172a;
+}
+.prose h1, .prose h2, .prose h3, .prose h4 { color: #0f172a; }
+.prose pre { background: transparent; padding: 0; border-radius: 0; }
+.dark .prose {
+  color: #e6edf3;
+}
+.dark .prose h1, 
+.dark .prose h2, 
+.dark .prose h3, 
+.dark .prose h4 { 
+  color: #e6edf3; 
+}
+.dark .prose a {
+  color: #818cf8;
+}
+.dark .prose a:hover {
+  color: #a5b4fc;
+}
+.dark .prose code {
+  background: rgba(99,102,241,0.2);
+  color: #e6edf3;
 }

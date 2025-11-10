@@ -311,6 +311,15 @@ async function parseDocx(buffer) {
 export async function POST(req) {
   try {
     const contentType = req.headers.get('content-type') || '';
+    // Debug mode: allow calling the deployed endpoint with ?debug=1 or header x-debug: 1
+    let debug = false;
+    try {
+      const reqUrl = typeof req.url === 'string' ? new URL(req.url, 'http://localhost') : null;
+      if (reqUrl && reqUrl.searchParams.get('debug') === '1') debug = true;
+    } catch (e) {
+      // ignore
+    }
+    if (req.headers.get('x-debug') === '1') debug = true;
     let text = '';
 
     if (contentType.includes('multipart/form-data')) {
@@ -366,6 +375,12 @@ export async function POST(req) {
     }
   const all = entities.concat(fallback || []);
 
+  // Helpful logs for deployed troubleshooting
+  try {
+    console.log('PARSE_RESUME: parsedTextLength=', (text || '').length);
+    console.log('PARSE_RESUME: entitiesFound=', all.length, 'sample=', (all || []).slice(0,5));
+  } catch (e) {}
+
   // Apply confidence threshold: only return candidates with confidence >= 0.9
   const CONFIDENCE_THRESHOLD = 0.9;
   const filtered = (all || []).filter((it) => (typeof it.confidence === 'number' ? it.confidence : 0) >= CONFIDENCE_THRESHOLD);
@@ -373,6 +388,9 @@ export async function POST(req) {
       // If no candidates, return empty result
       if (!filtered || filtered.length === 0) {
         const payload = { success: true, github: [] };
+        if (debug) {
+          payload.debug = { parsedText: text, entities: all };
+        }
         return new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
 
@@ -383,6 +401,7 @@ export async function POST(req) {
         // Fetch all repo details with limited concurrency to avoid overwhelming the GitHub API
         const details = await mapWithConcurrency(allRepos, async (ent) => await fetchGithubDetailsForEntity(ent), 3);
         const payload = { success: true, github: details };
+        if (debug) payload.debug = { parsedText: text, entities: all };
         return new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
 
@@ -393,6 +412,7 @@ export async function POST(req) {
       }
       const detailedTop = await fetchGithubDetailsForEntity(top);
       const payload = { success: true, github: [detailedTop] };
+      if (debug) payload.debug = { parsedText: text, entities: all };
       return new Response(JSON.stringify(payload), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

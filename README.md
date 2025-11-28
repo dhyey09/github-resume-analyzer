@@ -1,4 +1,4 @@
-# GitHub Resume Analyzer (Blink Analytics)
+# GitHub Resume Analyzer (Git Analytics)
 
 A small Next.js app that extracts GitHub links from a resume (PDF/DOCX or pasted text), enriches them using the GitHub REST API and displays per-repo metadata and full README content.
 

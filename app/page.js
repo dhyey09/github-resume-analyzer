@@ -255,7 +255,7 @@ export default function Home() {
               <Eye className="w-6 h-6 sm:w-7 sm:h-7 text-indigo-600 dark:text-indigo-400" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-800 dark:text-gray-100">Blink Analytics</h1>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-800 dark:text-gray-100">Git Analytics</h1>
               <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">Bright, actionable GitHub insights from your resume ✨</p>
             </div>
           </div>

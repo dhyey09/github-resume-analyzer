@@ -4,7 +4,7 @@ import { Inter } from 'next/font/google';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata = {
-  title: 'Blink Analytics - GitHub Resume Analyzer',
+  title: 'Git Analytics - GitHub Resume Analyzer',
   description: 'Upload your resume to analyze your GitHub profile.',
 };
 
